@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { use, useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -50,7 +50,8 @@ const getQuestions = (category: string, difficulty: string, level: number): Ques
   ]
 }
 
-export default function GamePlayPage({ params }: { params: { id: string } }) {
+export default function GamePlayPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
   const [game, setGame] = useState<Game | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
@@ -1093,7 +1094,7 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const fetchGame = async () => {
       try {
-        const [gameRes, profileRes] = await Promise.all([fetch(`/api/games/${params.id}`), getProfile()])
+        const [gameRes, profileRes] = await Promise.all([fetch(`/api/games/${id}`), getProfile()])
 
         if (!gameRes.ok) throw new Error("Game not found")
         const gameData = await gameRes.json()
@@ -1106,7 +1107,7 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
           setStudentLevel(level)
         }
 
-        const gameId = Number.parseInt(params.id)
+        const gameId = Number.parseInt(id)
         const gameSpecificQuestions = getGameSpecificQuestions(gameId, level)
         if (gameSpecificQuestions.length > 0) {
           setQuestions(gameSpecificQuestions)
@@ -1135,7 +1136,7 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
       }
     }
     fetchGame()
-  }, [params.id])
+  }, [id])
 
   useEffect(() => {
     if (game?.id === 11 && questions.length > 0 && !isComplete && !audioPlayed) {
@@ -1202,7 +1203,7 @@ export default function GamePlayPage({ params }: { params: { id: string } }) {
       const res = await fetch("/api/game-session/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gameId: Number.parseInt(params.id) }),
+        body: JSON.stringify({ gameId: Number.parseInt(id) }),
       })
       const data = await res.json()
       setSessionId(data.sessionId)

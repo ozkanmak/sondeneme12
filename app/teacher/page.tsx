@@ -14,40 +14,57 @@ export default async function TeacherDashboard() {
     redirect("/login")
   }
 
+  const teacherId = Number(user.id)
+
   // Fetch teacher's students
-  const students = await sql`
-    SELECT u.id, u.full_name, u.avatar_url, sp.points, sp.level
-    FROM teacher_students ts
-    JOIN users u ON ts.student_id = u.id
-    LEFT JOIN student_profiles sp ON u.id = sp.user_id
-    WHERE ts.teacher_id = ${user.id}
-    ORDER BY u.full_name
-  `
+  let students: Awaited<ReturnType<typeof sql>> = []
+  try {
+    students = await sql`
+      SELECT u.id, u.full_name, u.avatar_url, sp.points, sp.level
+      FROM teacher_students ts
+      JOIN users u ON ts.student_id = u.id
+      LEFT JOIN student_profiles sp ON u.id = sp.user_id
+      WHERE ts.teacher_id = ${teacherId}
+      ORDER BY u.full_name
+    `
+  } catch {
+    students = []
+  }
 
   // Fetch recent activity across all students
-  const recentActivity = await sql`
-    SELECT gs.*, g.title, g.category, u.full_name as student_name
-    FROM game_sessions gs
-    JOIN games g ON gs.game_id = g.id
-    JOIN users u ON gs.student_id = u.id
-    WHERE gs.student_id IN (
-      SELECT student_id FROM teacher_students WHERE teacher_id = ${user.id}
-    )
-    ORDER BY gs.started_at DESC
-    LIMIT 10
-  `
+  let recentActivity: Awaited<ReturnType<typeof sql>> = []
+  try {
+    recentActivity = await sql`
+      SELECT gs.*, g.title, g.category, u.full_name as student_name
+      FROM game_sessions gs
+      JOIN games g ON gs.game_id = g.id
+      JOIN users u ON gs.student_id = u.id
+      WHERE gs.student_id IN (
+        SELECT student_id FROM teacher_students WHERE teacher_id = ${teacherId}
+      )
+      ORDER BY gs.started_at DESC
+      LIMIT 10
+    `
+  } catch {
+    recentActivity = []
+  }
 
   // Fetch assignments
-  const assignments = await sql`
-    SELECT a.*, g.title as game_title, 
-           (SELECT COUNT(*) FROM assignment_submissions WHERE assignment_id = a.id) as submission_count,
-           (SELECT COUNT(*) FROM unnest(a.target_students) as student_id) as total_students
-    FROM assignments a
-    JOIN games g ON a.game_id = g.id
-    WHERE a.teacher_id = ${user.id}
-    ORDER BY a.due_date DESC
-    LIMIT 10
-  `
+  let assignments: Awaited<ReturnType<typeof sql>> = []
+  try {
+    assignments = await sql`
+      SELECT a.*, g.title as game_title, 
+             (SELECT COUNT(*) FROM assignment_submissions WHERE assignment_id = a.id) as submission_count,
+             (SELECT COUNT(*) FROM unnest(a.target_students) as student_id) as total_students
+      FROM assignments a
+      JOIN games g ON a.game_id = g.id
+      WHERE a.teacher_id = ${teacherId}
+      ORDER BY a.due_date DESC
+      LIMIT 10
+    `
+  } catch {
+    assignments = []
+  }
 
   // Calculate stats
   const totalStudents = students.length
@@ -190,8 +207,8 @@ export default async function TeacherDashboard() {
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-sm">{activity.score || 0}</div>
-                        <Badge variant={activity.status === "completed" ? "default" : "secondary"} className="text-xs">
-                          {activity.status === "completed" ? "Tamamlandı" : "Devam Ediyor"}
+                        <Badge variant={activity.completed_at != null ? "default" : "secondary"} className="text-xs">
+                          {activity.completed_at != null ? "Tamamlandı" : "Devam Ediyor"}
                         </Badge>
                       </div>
                     </div>

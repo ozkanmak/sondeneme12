@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth"
 import { sql } from "@/lib/db"
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getCurrentUser()
 
@@ -10,12 +10,18 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    const studentId = Number.parseInt(params.id)
+    const { id } = await params
+    const studentId = Number.parseInt(id, 10)
+    if (Number.isNaN(studentId)) {
+      return NextResponse.json({ error: "Invalid student id" }, { status: 400 })
+    }
+
+    const teacherId = Number(user.id)
 
     // Verify this student belongs to this teacher
     const teacherStudents = await sql`
       SELECT * FROM teacher_students 
-      WHERE teacher_id = ${user.id} AND student_id = ${studentId}
+      WHERE teacher_id = ${teacherId} AND student_id = ${studentId}
     `
 
     if (teacherStudents.length === 0) {

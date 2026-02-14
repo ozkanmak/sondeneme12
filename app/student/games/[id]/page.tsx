@@ -8,14 +8,18 @@ import { Brain, Clock, Target, ArrowLeft, Play } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-export default async function GameDetailPage({ params }: { params: { id: string } }) {
+export default async function GameDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   
   if (!user || user.role !== 'student') {
     redirect('/login')
   }
 
-  const gameId = parseInt(params.id)
+  const { id } = await params
+  const gameId = parseInt(id, 10)
+  if (Number.isNaN(gameId)) {
+    notFound()
+  }
   
   // Fetch game details
   const games = await sql`
@@ -27,11 +31,12 @@ export default async function GameDetailPage({ params }: { params: { id: string 
   }
   
   const game = games[0]
+  const userId = Number(user.id)
 
   // Fetch student's previous sessions for this game
   const sessions = await sql`
     SELECT * FROM game_sessions
-    WHERE student_id = ${user.id} AND game_id = ${gameId}
+    WHERE student_id = ${userId} AND game_id = ${gameId}
     ORDER BY started_at DESC
     LIMIT 5
   `
@@ -87,14 +92,16 @@ export default async function GameDetailPage({ params }: { params: { id: string 
                   </ul>
                 </div>
 
-                <div className="space-y-2">
-                  <h3 className="font-semibold">Nasıl Oynanır?</h3>
-                  <p className="text-sm text-muted-foreground">{game.instructions}</p>
-                </div>
+                {(game.instructions != null && game.instructions !== '') && (
+                  <div className="space-y-2">
+                    <h3 className="font-semibold">Nasıl Oynanır?</h3>
+                    <p className="text-sm text-muted-foreground">{game.instructions}</p>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="w-4 h-4" />
-                  Tahmini Süre: {game.estimated_duration} dakika
+                  Tahmini Süre: {game.duration_minutes ?? game.estimated_duration ?? 15} dakika
                 </div>
 
                 <Button asChild size="lg" className="w-full">

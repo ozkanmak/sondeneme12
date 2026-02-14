@@ -18,6 +18,7 @@ export default function GamesLibrary() {
   const [user, setUser] = useState<any>(null)
   const [student, setStudent] = useState<any>(null)
   const [allGames, setAllGames] = useState<any[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("recommended")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
@@ -28,16 +29,26 @@ export default function GamesLibrary() {
         const response = await fetch("/api/student/games")
         const data = await response.json()
 
+        if (!response.ok) {
+          setLoadError(data.error || "Oyunlar yüklenemedi")
+          setAllGames([])
+          setLoading(false)
+          return
+        }
+
         if (!data.user || data.user.role !== "student") {
           router.push("/login")
           return
         }
 
         setUser(data.user)
-        setStudent(data.student)
-        setAllGames(data.games)
+        setStudent(data.student ?? null)
+        setAllGames(Array.isArray(data.games) ? data.games : [])
+        setLoadError(data.error || null)
       } catch (error) {
         console.error("Failed to load games:", error)
+        setLoadError("Oyunlar yüklenirken bir hata oluştu")
+        setAllGames([])
       } finally {
         setLoading(false)
       }
@@ -187,6 +198,11 @@ export default function GamesLibrary() {
           </div>
 
           {/* Search and Filter Bar */}
+          {loadError && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+              {loadError}
+            </div>
+          )}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

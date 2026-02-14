@@ -15,28 +15,48 @@ export default async function StudentDashboard() {
     redirect("/login")
   }
 
+  const userId = Number(user.id)
+
   // Fetch student profile
-  const profiles = await sql`
-    SELECT * FROM student_profiles WHERE user_id = ${user.id}
-  `
-  const profile = profiles[0]
+  let profile: Awaited<ReturnType<typeof sql>>[0] | undefined
+  try {
+    const profiles = await sql`
+      SELECT * FROM student_profiles WHERE user_id = ${userId}
+    `
+    profile = profiles[0]
+  } catch {
+    profile = undefined
+  }
 
   // Fetch recent game sessions
-  const recentSessions = await sql`
-    SELECT gs.*, g.title, g.category, g.thumbnail_url
-    FROM game_sessions gs
-    JOIN games g ON gs.game_id = g.id
-    WHERE gs.student_id = ${user.id}
-    ORDER BY gs.started_at DESC
-    LIMIT 5
-  `
+  let recentSessions: Awaited<ReturnType<typeof sql>> = []
+  try {
+    recentSessions = await sql`
+      SELECT gs.*, g.title, g.category, g.thumbnail_url
+      FROM game_sessions gs
+      JOIN games g ON gs.game_id = g.id
+      WHERE gs.student_id = ${userId}
+      ORDER BY gs.started_at DESC
+      LIMIT 5
+    `
+  } catch {
+    recentSessions = []
+  }
 
-  // Fetch recommended games
-  const recommendedGames = await sql`
-    SELECT * FROM games
-    ORDER BY id
-    LIMIT 4
-  `
+  // Fetch recommended games (aktif oyunlar, sütun uyumlu)
+  let recommendedGames: Awaited<ReturnType<typeof sql>> = []
+  try {
+    recommendedGames = await sql`
+      SELECT id, title, description, category, difficulty_level,
+             duration_minutes, target_disabilities, thumbnail_url, game_url
+      FROM games
+      WHERE COALESCE(is_active, true) = true
+      ORDER BY id
+      LIMIT 4
+    `
+  } catch {
+    recommendedGames = []
+  }
 
   const completedSessions = recentSessions.filter((s: any) => s.completed_at !== null).length
   const totalSessions = recentSessions.length
@@ -60,25 +80,35 @@ export default async function StudentDashboard() {
     achievements.push({ id: 6, name: "Yüksek Performans", icon: "🔥", color: "bg-orange-100 text-orange-700" })
 
   const today = new Date().toISOString().split("T")[0]
-  const todaySessions = await sql`
-    SELECT COUNT(*) as count FROM game_sessions 
-    WHERE student_id = ${user.id} 
-    AND DATE(started_at) = ${today}
-    AND completed_at IS NOT NULL
-  `
+  let todayProgress = 0
+  try {
+    const todaySessions = await sql`
+      SELECT COUNT(*) as count FROM game_sessions 
+      WHERE student_id = ${userId} 
+      AND DATE(started_at) = ${today}
+      AND completed_at IS NOT NULL
+    `
+    todayProgress = Number(todaySessions[0]?.count) || 0
+  } catch {
+    todayProgress = 0
+  }
   const dailyGoal = 3
-  const todayProgress = todaySessions[0]?.count || 0
 
-  const categoryStats = await sql`
-    SELECT g.category, 
-           COUNT(*) as total, 
-           AVG(gs.score) as avg_score,
-           SUM(CASE WHEN gs.completed_at IS NOT NULL THEN 1 ELSE 0 END) as completed
-    FROM game_sessions gs
-    JOIN games g ON gs.game_id = g.id
-    WHERE gs.student_id = ${user.id}
-    GROUP BY g.category
-  `
+  let categoryStats: Awaited<ReturnType<typeof sql>> = []
+  try {
+    categoryStats = await sql`
+      SELECT g.category, 
+             COUNT(*) as total, 
+             AVG(gs.score) as avg_score,
+             SUM(CASE WHEN gs.completed_at IS NOT NULL THEN 1 ELSE 0 END) as completed
+      FROM game_sessions gs
+      JOIN games g ON gs.game_id = g.id
+      WHERE gs.student_id = ${userId}
+      GROUP BY g.category
+    `
+  } catch {
+    categoryStats = []
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -206,18 +236,18 @@ export default async function StudentDashboard() {
                   <CardContent className="p-4 pt-0 space-y-3">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Clock className="w-3 h-3" />
-                      {game.estimated_duration} dakika
+                      {game.duration_minutes ?? game.estimated_duration ?? 15} dakika
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="text-xs">
-                        {game.difficulty_level}
+                        {game.difficulty_level == null ? "—" : game.difficulty_level}
                       </Badge>
                       <Badge variant="outline" className="text-xs">
-                        {game.category}
+                        {game.category ?? "—"}
                       </Badge>
                     </div>
                     <Button asChild className="w-full" size="sm">
-                      <Link href={`/student/games/${game.id}`}>Oyna</Link>
+                      <Link href={`/student/games/${game.id}/play`}>Oyna</Link>
                     </Button>
                   </CardContent>
                 </Card>

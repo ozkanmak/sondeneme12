@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { use, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,14 +17,15 @@ interface StudentData {
   playTimeMinutes: number
 }
 
-export default function StudentDetailPage({ params }: { params: { id: string } }) {
+export default function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const router = useRouter()
   const [data, setData] = useState<StudentData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(`/api/teacher/students/${params.id}`)
+    fetch(`/api/teacher/students/${id}`)
       .then((res) => {
         if (!res.ok) {
           if (res.status === 403) {
@@ -38,7 +39,7 @@ export default function StudentDetailPage({ params }: { params: { id: string } }
       .then(setData)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [params.id, router])
+  }, [id, router])
 
   if (loading) {
     return (
